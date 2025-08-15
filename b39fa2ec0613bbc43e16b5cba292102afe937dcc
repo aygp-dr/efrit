@@ -1,0 +1,21 @@
+Context for Queue Usage Examples
+
+User requested documentation showing how agents communicate through
+efrit-remote-queue, with specific examples using L5/L7 engineers
+and the CONTINUE pattern.
+
+Examples created:
+- L5 (implementation) and L7 (architecture) collaboration
+- Code reviewer coordinating frontend, backend, test engineers
+- CONTINUE pattern with progressive enhancement
+- Real JSON structures for queue communication
+
+Design principles shown:
+- Agents communicate asynchronously via JSON files
+- Each agent makes independent CONTINUE decisions
+- Metadata enables coordination without direct coupling
+- File-based approach provides persistence and audit trail
+
+Based on earlier experiments understanding that efrit-remote-queue
+is NOT a FIFO but an event-driven, file-based message system using
+filesystem notifications (kqueue on FreeBSD).
