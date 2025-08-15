@@ -1,6 +1,7 @@
 # Makefile for Efrit - AI-Powered Emacs Coding Assistant
 
 # Configuration
+PROJECT_ROOT := $(shell pwd)
 EMACS = emacs
 EMACS_BATCH = $(EMACS) --batch --no-init-file
 PACKAGE_NAME = efrit
@@ -63,7 +64,7 @@ lisp/efrit-command.elc: lisp/efrit-tools.elc
 lisp/%.elc: lisp/%.el
 	@echo "Compiling $<..."
 	@$(EMACS_BATCH) \
-		--eval "(add-to-list 'load-path \"./lisp\")" \
+		--eval "(add-to-list 'load-path \"$(PROJECT_ROOT)/lisp\")" \
 		--eval "(setq byte-compile-error-on-warn nil)" \
 		-f batch-byte-compile $<
 
