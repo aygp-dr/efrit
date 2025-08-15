@@ -1,0 +1,25 @@
+Context for Experiment 002: efrit-remote-queue Deep Dive
+
+User noticed efrit-remote-queue in recent git pull and requested investigation
+to understand if it uses FIFO queues. After examining the implementation,
+discovered it's actually an event-driven system, not a traditional queue.
+
+Technical investigation revealed:
+- Uses filenotify library (kqueue on FreeBSD, inotify on Linux)
+- Watches directories for .json file creation events
+- Moves files between directories to track state
+- Provides natural locking through filesystem operations
+
+FreeBSD-specific considerations:
+- kqueue provides efficient file monitoring
+- User confirmed kqueue packages available (p5-IO-KQueue, etc.)
+- Better performance than polling-based alternatives
+
+Design philosophy analysis:
+- Trades strict ordering for persistence and durability
+- Enables inter-process communication (different languages/tools)
+- Survives crashes and restarts unlike in-memory queues
+- Similar to message queue systems with file persistence
+
+This investigation helps understand how AI agents can communicate
+with Emacs asynchronously through a robust file-based protocol.
