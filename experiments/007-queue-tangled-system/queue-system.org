@@ -673,10 +673,10 @@ impl_id = coord.send_request("engineer", MessageType.EVAL, "(message \"Implement
 
 This tangled implementation provides a complete, type-safe queue system for Efrit with:
 
-- **Pydantic Models**: Type safety and validation
-- **JSON Schema Generation**: Automatic schema creation
-- **Test Harness**: Comprehensive testing with single-line JSON generation
-- **Agent Coordination**: Multi-agent workflow management
-- **Python Client**: Easy queue interaction from Python
+- *Pydantic Models*: Type safety and validation
+- *JSON Schema Generation*: Automatic schema creation
+- *Test Harness*: Comprehensive testing with single-line JSON generation
+- *Agent Coordination*: Multi-agent workflow management
+- *Python Client*: Easy queue interaction from Python
 
 All code is extracted from this org document using tangling, ensuring documentation and implementation stay synchronized.
