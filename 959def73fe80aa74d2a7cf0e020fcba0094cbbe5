@@ -1,0 +1,19 @@
+Context for Experiment 004: Ollama Tool Calling
+
+User requested an experiment to track tool calling using Elisp primitives
+after reading about Ollama's tool support announcement.
+
+Implementation approach:
+- Created JSON schemas for Elisp functions per Ollama spec
+- Mapped native functions: dired, find-file, load-file, grep-find
+- Built execution framework with comprehensive error handling
+- Added tool call logging for audit trail
+
+Testing considerations:
+- Shell script validates Ollama installation first
+- Checks for tool-supporting models before testing
+- Uses curl to demonstrate raw API usage
+- No credentials needed for Ollama (local inference)
+
+This experiment bridges Ollama's tool calling with Emacs functionality,
+enabling LLMs to directly manipulate the editor environment.
