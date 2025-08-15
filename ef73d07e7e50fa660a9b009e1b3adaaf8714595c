@@ -1,0 +1,20 @@
+Context for Experiment 001: Ollama Elisp-only
+
+User requested an experiment to communicate with Ollama using only HTTP
+to get pure Elisp responses. The goal was to have Ollama return valid
+Elisp code that could be directly executed by Emacs without any parsing.
+
+Key design decisions:
+1. Structured output with JSON schema - Most reliable method to enforce format
+2. Explicit system prompt rules - Prevents natural language explanations
+3. Auto-discovery of coding models - Prefers qwen2.5-coder
+4. Temperature set to 0.1 - Ensures deterministic responses
+
+Use cases explored:
+- File operations (directory listing, file checks)
+- Data manipulation (lists, calculations)
+- Buffer operations (counting, getting info)
+- System information queries
+
+This experiment shows how LLMs can be integrated as code generators
+rather than conversational agents, producing machine-executable output.
