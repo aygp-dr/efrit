@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # launch-autonomous-efrit.sh - Launch autonomous AI development environment
 # 
