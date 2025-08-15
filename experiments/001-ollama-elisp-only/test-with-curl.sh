@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 # Test Ollama Elisp-only responses using curl commands
 
 # Colors for output

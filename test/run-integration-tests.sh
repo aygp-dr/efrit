@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # run-integration-tests.sh - Run all efrit test suites
 
@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 # Test results tracking
 TESTS_RUN=0
 TESTS_PASSED=0
-FAILED_TESTS=()
+FAILED_TESTS=""
 
 run_test() {
     local test_file="$1"
@@ -37,7 +37,7 @@ run_test() {
             TESTS_RUN=$((TESTS_RUN - 1))  # Don't count skipped tests
         else
             echo -e "${RED}❌ $test_name FAILED${NC}"
-            FAILED_TESTS+=("$test_name")
+            FAILED_TESTS="$FAILED_TESTS $test_name"
         fi
     fi
     echo

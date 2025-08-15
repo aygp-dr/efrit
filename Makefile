@@ -42,6 +42,7 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  lint        - Check code style and conventions"
+	@echo "  lint-shell  - Check shell scripts for issues"
 	@echo "  debug       - Build with debug information"
 	@echo ""
 	@echo "Distribution:"
@@ -88,6 +89,12 @@ lint:
 		fi; \
 	done
 	@echo "✅ Code style checks passed"
+
+# Shell script linting
+SHELL_FILES = $(wildcard test/*.sh bin/*.sh experiments/*/*.sh scripts/*.sh)
+
+lint-shell:
+	@./scripts/lint-shell.sh $(SHELL_FILES)
 
 # Testing
 test: compile
@@ -159,7 +166,7 @@ dev-setup:
 	@echo "✅ Development environment ready"
 
 # Continuous integration target
-ci: check lint compile test
+ci: check lint lint-shell compile test
 
 # Show current configuration
 config:

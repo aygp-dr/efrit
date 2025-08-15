@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # test-context-integration.sh
 # Integration test for context enhancement in retry logic

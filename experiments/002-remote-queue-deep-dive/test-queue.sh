@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Interactive test script for efrit-remote-queue
 
 set -e

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # efrit-test-simple.sh - Simple integration test runner for efrit-chat
 # Tests both basic chat functionality and multi-turn conversations

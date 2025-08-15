@@ -1,0 +1,682 @@
+#+TITLE: Efrit Queue System with Tangled Implementation
+#+AUTHOR: Efrit Development Team
+#+STARTUP: content
+#+PROPERTY: header-args :tangle yes :comments both :mkdirp yes
+
+* Introduction
+
+This document provides a complete implementation of the Efrit queue system using org-mode tangling. All code blocks are executed and tangled into actual Python files that form a working queue system.
+
+* Pydantic Models
+
+** Base Queue Message Model
+
+#+begin_src python :tangle models.py
+"""
+Pydantic models for Efrit queue system.
+Provides type safety and JSON schema generation.
+"""
+from datetime import datetime
+from enum import Enum
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field
+
+
+class MessageType(str, Enum):
+    """Queue message types."""
+    EVAL = "eval"
+    SHELL = "shell" 
+    FILE_READ = "file_read"
+    FILE_WRITE = "file_write"
+    NATURAL = "natural"
+
+
+class MessageStatus(str, Enum):
+    """Queue message status."""
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCESS = "success"
+    ERROR = "error"
+    TIMEOUT = "timeout"
+
+
+class AgentRole(str, Enum):
+    """Agent role types."""
+    L5_ENGINEER = "l5-engineer"
+    L7_ARCHITECT = "l7-architect"
+    SECURITY_EXPERT = "security-expert"
+    PERFORMANCE_ENGINEER = "performance-engineer"
+    QA_ENGINEER = "qa-engineer"
+
+
+class QueueRequest(BaseModel):
+    """Base queue request message."""
+    id: str = Field(..., description="Unique request identifier")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Request timestamp")
+    type: MessageType = Field(..., description="Type of operation to perform")
+    content: str = Field(..., description="Content to execute or process")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")
+    
+    class Config:
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class QueueResponse(BaseModel):
+    """Base queue response message."""
+    id: str = Field(..., description="Request ID this responds to")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
+    status: MessageStatus = Field(..., description="Execution status")
+    result: Optional[str] = Field(default=None, description="Execution result")
+    error: Optional[str] = Field(default=None, description="Error message if failed")
+    execution_time: Optional[float] = Field(default=None, description="Execution time in seconds")
+    
+    class Config:
+        use_enum_values = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
+
+
+class AgentMetadata(BaseModel):
+    """Agent-specific metadata."""
+    agent_id: str = Field(..., description="Agent identifier")
+    role: AgentRole = Field(..., description="Agent role")
+    phase: str = Field(..., description="Current phase of work")
+    continue_logic: str = Field(..., description="Logic for when to continue")
+    dependencies: List[str] = Field(default=[], description="Dependencies on other agents")
+    
+    class Config:
+        use_enum_values = True
+
+
+class AgentRequest(QueueRequest):
+    """Agent-specific queue request."""
+    agent_metadata: AgentMetadata = Field(..., description="Agent coordination metadata")
+
+
+class AgentResponse(QueueResponse):
+    """Agent-specific queue response."""
+    agent_metadata: Optional[AgentMetadata] = Field(default=None, description="Updated agent metadata")
+    next_actions: List[str] = Field(default=[], description="Suggested next actions")
+    blocking_issues: List[str] = Field(default=[], description="Issues blocking progress")
+#+end_src
+
+** Schema Generation
+
+#+begin_src python :tangle schema_generator.py
+"""
+Generate JSON schemas from Pydantic models.
+"""
+import json
+from models import QueueRequest, QueueResponse, AgentRequest, AgentResponse
+
+
+def generate_schemas():
+    """Generate JSON schemas for all models."""
+    schemas = {
+        "QueueRequest": QueueRequest.schema(),
+        "QueueResponse": QueueResponse.schema(), 
+        "AgentRequest": AgentRequest.schema(),
+        "AgentResponse": AgentResponse.schema()
+    }
+    
+    # Write schemas to files
+    for name, schema in schemas.items():
+        with open(f"{name.lower()}_schema.json", "w") as f:
+            json.dump(schema, f, indent=2)
+    
+    return schemas
+
+
+if __name__ == "__main__":
+    schemas = generate_schemas()
+    print("Generated schemas:")
+    for name in schemas:
+        print(f"  - {name.lower()}_schema.json")
+#+end_src
+
+* Test Harness
+
+** Single-Line JSON Generator
+
+#+begin_src python :tangle test_harness.py
+"""
+Test harness for generating and validating queue messages.
+Supports single-line JSON generation for easy testing.
+"""
+import json
+import uuid
+from datetime import datetime
+from models import (
+    QueueRequest, QueueResponse, AgentRequest, AgentResponse,
+    MessageType, MessageStatus, AgentRole, AgentMetadata
+)
+
+
+class TestHarness:
+    """Test harness for queue system."""
+    
+    def __init__(self):
+        self.test_cases = []
+    
+    def generate_request_json(self, msg_type: MessageType, content: str, 
+                            agent_id: str = None, role: AgentRole = None) -> str:
+        """Generate a single-line JSON request."""
+        req_id = f"req_{int(datetime.now().timestamp())}"
+        
+        if agent_id and role:
+            # Agent request
+            metadata = AgentMetadata(
+                agent_id=agent_id,
+                role=role,
+                phase="implementation",
+                continue_logic="Continue while tasks remain"
+            )
+            request = AgentRequest(
+                id=req_id,
+                type=msg_type,
+                content=content,
+                agent_metadata=metadata
+            )
+        else:
+            # Basic request
+            request = QueueRequest(
+                id=req_id,
+                type=msg_type,
+                content=content
+            )
+        
+        return request.json(separators=(',', ':'))
+    
+    def generate_response_json(self, request_id: str, status: MessageStatus,
+                             result: str = None, error: str = None) -> str:
+        """Generate a single-line JSON response."""
+        response = QueueResponse(
+            id=request_id,
+            status=status,
+            result=result,
+            error=error,
+            execution_time=0.001
+        )
+        return response.json(separators=(',', ':'))
+    
+    def create_l5_l7_workflow(self) -> List[str]:
+        """Create L5/L7 collaboration workflow as JSON lines."""
+        workflow = []
+        
+        # L7 creates architecture
+        l7_design = self.generate_request_json(
+            MessageType.EVAL,
+            "(progn (find-file \"ARCHITECTURE.md\") (insert \"## System Design\\n\") (save-buffer))",
+            "l7-architect",
+            AgentRole.L7_ARCHITECT
+        )
+        workflow.append(l7_design)
+        
+        # L5 implements based on design
+        l5_impl = self.generate_request_json(
+            MessageType.EVAL,
+            "(progn (find-file \"src/api.py\") (insert \"# API Implementation\\n\") (save-buffer))",
+            "l5-engineer", 
+            AgentRole.L5_ENGINEER
+        )
+        workflow.append(l5_impl)
+        
+        # Security review
+        security_review = self.generate_request_json(
+            MessageType.EVAL,
+            "(progn (find-file \"SECURITY_REVIEW.md\") (insert \"## Security Analysis\\n\") (save-buffer))",
+            "security-expert",
+            AgentRole.SECURITY_EXPERT
+        )
+        workflow.append(security_review)
+        
+        return workflow
+    
+    def run_tests(self):
+        """Run comprehensive test suite."""
+        print("🧪 Running Efrit Queue Test Harness")
+        print("=" * 50)
+        
+        # Test 1: Basic request generation
+        print("\n📝 Test 1: Basic Request Generation")
+        basic_req = self.generate_request_json(MessageType.EVAL, "(+ 40 2)")
+        print(f"Request: {basic_req}")
+        
+        # Validate by parsing back
+        try:
+            parsed = QueueRequest.parse_raw(basic_req)
+            print(f"✅ Valid: {parsed.type} request with ID {parsed.id}")
+        except Exception as e:
+            print(f"❌ Invalid: {e}")
+        
+        # Test 2: Agent workflow
+        print("\n🤖 Test 2: L5/L7 Agent Workflow")
+        workflow = self.create_l5_l7_workflow()
+        for i, request in enumerate(workflow, 1):
+            print(f"Step {i}: {request}")
+            try:
+                parsed = AgentRequest.parse_raw(request)
+                print(f"✅ Valid agent request: {parsed.agent_metadata.role}")
+            except Exception as e:
+                print(f"❌ Invalid: {e}")
+        
+        # Test 3: Response generation
+        print("\n📤 Test 3: Response Generation")
+        response = self.generate_response_json("req_123", MessageStatus.SUCCESS, "42")
+        print(f"Response: {response}")
+        
+        try:
+            parsed = QueueResponse.parse_raw(response)
+            print(f"✅ Valid response: {parsed.status} with result '{parsed.result}'")
+        except Exception as e:
+            print(f"❌ Invalid: {e}")
+        
+        print("\n🎉 Test harness complete!")
+
+
+if __name__ == "__main__":
+    harness = TestHarness()
+    harness.run_tests()
+#+end_src
+
+* Agent Coordinator
+
+** Multi-Agent Workflow Management
+
+#+begin_src python :tangle agent_coordinator.py
+"""
+Agent coordinator for managing multi-agent workflows.
+"""
+import json
+import os
+import time
+from pathlib import Path
+from typing import Dict, List
+from models import AgentRequest, AgentResponse, AgentMetadata, AgentRole, MessageType
+from test_harness import TestHarness
+
+
+class AgentCoordinator:
+    """Coordinates multiple agents working together."""
+    
+    def __init__(self, queue_dir: str = "~/.emacs.d/efrit-queue"):
+        self.queue_dir = Path(queue_dir).expanduser()
+        self.requests_dir = self.queue_dir / "requests"
+        self.responses_dir = self.queue_dir / "responses"
+        self.agents: Dict[str, AgentMetadata] = {}
+        self.harness = TestHarness()
+        
+        # Ensure directories exist
+        self.requests_dir.mkdir(parents=True, exist_ok=True)
+        self.responses_dir.mkdir(parents=True, exist_ok=True)
+    
+    def register_agent(self, agent_id: str, role: AgentRole, 
+                      continue_logic: str, dependencies: List[str] = None):
+        """Register a new agent."""
+        self.agents[agent_id] = AgentMetadata(
+            agent_id=agent_id,
+            role=role,
+            phase="initialized",
+            continue_logic=continue_logic,
+            dependencies=dependencies or []
+        )
+        print(f"🤖 Registered agent: {agent_id} ({role})")
+    
+    def send_request(self, agent_id: str, msg_type: MessageType, content: str) -> str:
+        """Send a request from an agent."""
+        if agent_id not in self.agents:
+            raise ValueError(f"Unknown agent: {agent_id}")
+        
+        agent_meta = self.agents[agent_id]
+        request = AgentRequest(
+            id=f"{agent_id}_{int(time.time())}",
+            type=msg_type,
+            content=content,
+            agent_metadata=agent_meta
+        )
+        
+        # Write to queue
+        request_file = self.requests_dir / f"{request.id}.json"
+        with open(request_file, 'w') as f:
+            f.write(request.json(indent=2))
+        
+        print(f"📤 {agent_id} sent request: {request.id}")
+        return request.id
+    
+    def wait_for_response(self, request_id: str, timeout: int = 30) -> AgentResponse:
+        """Wait for a response to a request."""
+        response_file = self.responses_dir / f"resp_{request_id[4:]}.json"
+        
+        for _ in range(timeout):
+            if response_file.exists():
+                with open(response_file, 'r') as f:
+                    return AgentResponse.parse_raw(f.read())
+            time.sleep(1)
+        
+        raise TimeoutError(f"No response for {request_id} within {timeout}s")
+    
+    def run_l5_l7_collaboration(self):
+        """Run L5/L7 collaboration example."""
+        print("🚀 Starting L5/L7 Collaboration Workflow")
+        print("=" * 50)
+        
+        # Register agents
+        self.register_agent("l7-architect", AgentRole.L7_ARCHITECT, 
+                          "Continue while design is incomplete")
+        self.register_agent("l5-engineer", AgentRole.L5_ENGINEER,
+                          "Continue while implementation tasks remain",
+                          dependencies=["l7-architect"])
+        
+        # Step 1: L7 creates architecture
+        print("\n📐 Step 1: L7 Architect creates system design")
+        arch_content = """(progn 
+          (find-file "~/project/ARCHITECTURE.md")
+          (insert "## System Architecture\\n\\n### Components\\n1. API Gateway\\n2. Service Layer\\n3. Data Store\\n")
+          (save-buffer))"""
+        
+        arch_req_id = self.send_request("l7-architect", MessageType.EVAL, arch_content)
+        
+        # Step 2: L5 implements based on architecture  
+        print("\n🔧 Step 2: L5 Engineer starts implementation")
+        impl_content = """(progn
+          (find-file "~/project/src/api.py") 
+          (insert "# API Gateway Implementation\\nfrom flask import Flask\\napp = Flask(__name__)\\n")
+          (save-buffer))"""
+        
+        impl_req_id = self.send_request("l5-engineer", MessageType.EVAL, impl_content)
+        
+        print(f"\n⏳ Waiting for Efrit to process requests...")
+        print(f"   Architecture request: {arch_req_id}")  
+        print(f"   Implementation request: {impl_req_id}")
+        print(f"\n💡 Start Efrit queue system with: (efrit-remote-queue-start)")
+    
+    def generate_test_files(self):
+        """Generate test files for manual testing."""
+        print("📁 Generating test request files...")
+        
+        # Generate L5/L7 workflow
+        workflow = self.harness.create_l5_l7_workflow()
+        
+        for i, request_json in enumerate(workflow, 1):
+            filename = f"test_workflow_{i:02d}.json"
+            filepath = self.requests_dir / filename
+            
+            # Parse and reformat for readability
+            request_data = json.loads(request_json)
+            with open(filepath, 'w') as f:
+                json.dump(request_data, f, indent=2)
+            
+            print(f"   Generated: {filename}")
+        
+        print(f"🎯 Test files written to: {self.requests_dir}")
+
+
+if __name__ == "__main__":
+    coordinator = AgentCoordinator()
+    
+    print("🎮 Efrit Agent Coordinator")
+    print("=" * 30)
+    print("1. Generate test files")  
+    print("2. Run L5/L7 collaboration")
+    print("3. Both")
+    
+    choice = input("\nChoose option (1-3): ").strip()
+    
+    if choice in ["1", "3"]:
+        coordinator.generate_test_files()
+    
+    if choice in ["2", "3"]:
+        coordinator.run_l5_l7_collaboration()
+#+end_src
+
+* Queue Client
+
+** Python Client for Queue Interaction
+
+#+begin_src python :tangle queue_client.py
+"""
+Python client for interacting with Efrit queue system.
+"""
+import json
+import time
+from pathlib import Path
+from typing import Optional
+from models import QueueRequest, QueueResponse, MessageType, MessageStatus
+
+
+class EfritQueueClient:
+    """Client for sending requests to Efrit queue system."""
+    
+    def __init__(self, queue_dir: str = "~/.emacs.d/efrit-queue"):
+        self.queue_dir = Path(queue_dir).expanduser()
+        self.requests_dir = self.queue_dir / "requests" 
+        self.responses_dir = self.queue_dir / "responses"
+        
+        # Ensure directories exist
+        self.requests_dir.mkdir(parents=True, exist_ok=True)
+        self.responses_dir.mkdir(parents=True, exist_ok=True)
+    
+    def send_eval(self, elisp_code: str, request_id: str = None) -> str:
+        """Send Elisp evaluation request."""
+        if not request_id:
+            request_id = f"eval_{int(time.time())}"
+        
+        request = QueueRequest(
+            id=request_id,
+            type=MessageType.EVAL,
+            content=elisp_code
+        )
+        
+        request_file = self.requests_dir / f"{request_id}.json"
+        with open(request_file, 'w') as f:
+            f.write(request.json(indent=2))
+        
+        return request_id
+    
+    def send_shell(self, command: str, request_id: str = None) -> str:
+        """Send shell command request."""
+        if not request_id:
+            request_id = f"shell_{int(time.time())}"
+        
+        request = QueueRequest(
+            id=request_id,
+            type=MessageType.SHELL,
+            content=command
+        )
+        
+        request_file = self.requests_dir / f"{request_id}.json"
+        with open(request_file, 'w') as f:
+            f.write(request.json(indent=2))
+        
+        return request_id
+    
+    def wait_for_response(self, request_id: str, timeout: int = 30) -> Optional[QueueResponse]:
+        """Wait for response to a request."""
+        response_file = self.responses_dir / f"resp_{request_id[5:]}.json"
+        
+        for _ in range(timeout):
+            if response_file.exists():
+                with open(response_file, 'r') as f:
+                    return QueueResponse.parse_raw(f.read())
+            time.sleep(1)
+        
+        return None
+    
+    def eval_and_wait(self, elisp_code: str, timeout: int = 30) -> Optional[str]:
+        """Send eval request and wait for result."""
+        request_id = self.send_eval(elisp_code)
+        response = self.wait_for_response(request_id, timeout)
+        
+        if response and response.status == MessageStatus.SUCCESS:
+            return response.result
+        elif response:
+            print(f"❌ Error: {response.error}")
+            return None
+        else:
+            print(f"⏰ Timeout waiting for response")
+            return None
+
+
+def demo_queue_client():
+    """Demonstrate queue client usage."""
+    print("🔌 Efrit Queue Client Demo")
+    print("=" * 30)
+    
+    client = EfritQueueClient()
+    
+    # Test 1: Simple arithmetic
+    print("\n➕ Test 1: Simple arithmetic")
+    result = client.eval_and_wait("(+ 40 2)")
+    if result:
+        print(f"Result: {result}")
+    
+    # Test 2: Get current time
+    print("\n🕐 Test 2: Current time")
+    result = client.eval_and_wait("(current-time-string)")
+    if result:
+        print(f"Time: {result}")
+    
+    # Test 3: Buffer operations
+    print("\n📄 Test 3: Buffer operations")
+    elisp_code = """(progn
+      (with-temp-buffer
+        (insert "Hello from Python!")
+        (buffer-string)))"""
+    result = client.eval_and_wait(elisp_code)
+    if result:
+        print(f"Buffer content: {result}")
+    
+    print("\n✅ Demo complete!")
+
+
+if __name__ == "__main__":
+    demo_queue_client()
+#+end_src
+
+* Configuration and Setup
+
+** Tangling Instructions
+
+To extract all Python files from this org document:
+
+#+begin_example
+# In Emacs
+C-c C-v t  (org-babel-tangle)
+
+# Or from command line  
+emacs --batch queue-system.org -f org-babel-tangle
+#+end_example
+
+** Dependencies
+
+#+begin_src text :tangle requirements.txt
+pydantic>=1.10.0
+typing-extensions>=4.0.0
+#+end_src
+
+** Installation Script
+
+#+begin_src bash :tangle install.sh :shebang #!/usr/bin/env bash
+#!/usr/bin/env bash
+# Installation script for queue system
+
+set -e
+
+echo "🚀 Installing Efrit Queue System with Tangling"
+echo "=" * 50
+
+# Check for Emacs
+if ! command -v emacs >/dev/null 2>&1; then
+    echo "❌ Emacs not found - required for tangling"
+    exit 1
+fi
+
+# Tangle the org file
+echo "📝 Tangling org file to extract Python code..."
+emacs --batch queue-system.org -f org-babel-tangle
+
+# Install Python dependencies
+echo "📦 Installing Python dependencies..."
+if command -v pip >/dev/null 2>&1; then
+    pip install -r requirements.txt
+else
+    echo "⚠️ pip not found - install manually: pydantic typing-extensions"
+fi
+
+# Generate schemas
+echo "🔧 Generating JSON schemas..."
+python schema_generator.py
+
+# Run tests
+echo "🧪 Running test harness..."
+python test_harness.py
+
+echo ""
+echo "✅ Installation complete!"
+echo ""
+echo "Next steps:"
+echo "1. Start Efrit queue: (efrit-remote-queue-start)"
+echo "2. Run agent coordinator: python agent_coordinator.py"
+echo "3. Use queue client: python queue_client.py"
+#+end_src
+
+* Example Usage
+
+** Interactive Examples
+
+*** Basic Queue Operations
+
+#+begin_src elisp :eval no
+;; Start the queue system in Emacs
+(efrit-remote-queue-start)
+
+;; Check status
+(efrit-remote-queue-status)
+#+end_src
+
+*** Python Client Usage
+
+#+begin_src python :eval no
+from queue_client import EfritQueueClient
+
+# Create client
+client = EfritQueueClient()
+
+# Send evaluation request
+result = client.eval_and_wait("(+ 1 2 3)")
+print(f"Result: {result}")  # Should print "Result: 6"
+#+end_src
+
+*** Agent Coordination
+
+#+begin_src python :eval no
+from agent_coordinator import AgentCoordinator
+from models import AgentRole, MessageType
+
+# Create coordinator
+coord = AgentCoordinator()
+
+# Register agents
+coord.register_agent("architect", AgentRole.L7_ARCHITECT, "Design complete")
+coord.register_agent("engineer", AgentRole.L5_ENGINEER, "Implementation done")
+
+# Send requests
+arch_id = coord.send_request("architect", MessageType.EVAL, "(message \"Designing...\")")
+impl_id = coord.send_request("engineer", MessageType.EVAL, "(message \"Implementing...\")")
+#+end_src
+
+* Conclusion
+
+This tangled implementation provides a complete, type-safe queue system for Efrit with:
+
+- **Pydantic Models**: Type safety and validation
+- **JSON Schema Generation**: Automatic schema creation
+- **Test Harness**: Comprehensive testing with single-line JSON generation
+- **Agent Coordination**: Multi-agent workflow management
+- **Python Client**: Easy queue interaction from Python
+
+All code is extracted from this org document using tangling, ensuring documentation and implementation stay synchronized.

@@ -2,6 +2,8 @@
 
 This system enables AI-to-Efrit communication through file-based JSON messaging, allowing autonomous development and debugging.
 
+> **Note**: For a complete implementation with org-mode tangling, Pydantic models, and test harness, see `experiments/007-queue-tangled-system/`.
+
 ## Setup
 
 1. Start Efrit queue system in Emacs:
