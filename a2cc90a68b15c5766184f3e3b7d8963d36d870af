@@ -1,0 +1,24 @@
+Context for Experiment 005: Interactive tmux Testing
+
+User requested documentation of how we tested Efrit interactively
+using tmux sessions, with plans to record demos using asciinema.
+
+Testing process discovered:
+- tmux capture-pane -p gives full screen context (don't use head/tail)
+- Send keys carefully with proper control sequences
+- Use sleep for async operations
+- Check Messages buffer for debugging
+
+Security focus:
+- User emphasized NEVER showing API keys or authinfo in demos
+- Must be PARANOID about credentials in recordings
+- Check screen after each command during demos
+- Use emacs -Q to avoid loading user's init file
+
+Demo recording plan:
+- asciinema rec for terminal recording
+- agg tool for converting to GIF
+- Multiple safety checks before recording
+- Separate demos for different features
+
+This experiment ensures reproducible, safe demonstrations.
