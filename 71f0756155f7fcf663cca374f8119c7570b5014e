@@ -1,0 +1,30 @@
+Context: Fixed compilation issues with efrit-agent.el unable to load efrit-tools.
+
+Testing performed:
+- Ran gmake clean, check, lint, compile successfully
+- All 12 elisp files compiled without errors
+- Only minor warning about efrit-agent-run in efrit-command.el
+- Verified .elc files are properly gitignored
+
+Issue encountered:
+- Original relative path './lisp' failed during byte-compilation
+- efrit-agent.el couldn't find efrit-tools dependency
+- Solution: Added PROJECT_ROOT variable using $(shell pwd) for absolute paths
+
+Interactive testing:
+- Successfully tested efrit-do with tmux sessions
+- Created 4 haiku buffers in split window layout
+- Documented auth-source lookup order for Anthropic API
+- Added ~/.authinfo template entry
+
+Security notes:
+- Carefully checked all commits for API keys before pushing
+- Used grep to verify no sensitive data in staged files
+- All experiments properly exclude credentials
+
+Experiments created:
+- 001-ollama-elisp-only: Pure Elisp responses
+- 002-remote-queue-deep-dive: Discovered kqueue/filenotify usage
+- 003-continue-framework-agents: Minimal agent simulation
+- 004-ollama-tool-calling-elisp: Tool definitions for Ollama
+- 005-interactive-tmux-testing: Asciinema recording setup
