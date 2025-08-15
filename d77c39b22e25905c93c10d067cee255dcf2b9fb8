@@ -1,0 +1,30 @@
+Context for Experiment 003: CONTINUE Framework with Agents
+
+User requested simulation of three agents (builder, observer, meta-observer)
+after exploring efrit-remote-queue, with VERY minimal directives to
+illustrate communication patterns.
+
+Design constraints applied:
+- Minimal agent definitions (~5 lines each)
+- Focus on CONTINUE YES/NO decisions only
+- No complex behaviors or rules
+- Clear demonstration of coordination
+
+Agent interaction patterns explored:
+- Builder: Works incrementally, reports progress
+- Observer: Watches builder, reports when inactive
+- Meta-Observer: Monitors both, coordinates termination
+
+CONTINUE framework insights:
+- Enables agents to work autonomously yet coordinated
+- Simple YES/NO decisions create emergent behavior
+- File-based queue provides audit trail of decisions
+- Pattern scales to many agents without complexity
+
+Connection to efrit-remote-queue:
+- Shows how queue enables multi-agent systems
+- Demonstrates async coordination without direct coupling
+- Illustrates persistence benefits for long-running tasks
+
+This minimal implementation proves the CONTINUE pattern's elegance
+for agent coordination through simple, declarative decisions.
