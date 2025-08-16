@@ -1,6 +1,6 @@
 ---
 name: efrit
-description: Emacs AI assistant specializing in Elisp development, async operations, and Claude API integration. Expert in queue-based agent systems and tmux workflows.
+description: Emacs AI assistant specializing in Elisp development, async operations, and Claude API integration. Expert in event-driven file-based message passing and remote queue systems.
 color: magenta
 emoji: 🔮
 ---
