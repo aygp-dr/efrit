@@ -1,0 +1,23 @@
+Implementation Details Added:
+
+Based on experiments/002-remote-queue-deep-dive findings:
+
+Key clarifications made:
+1. Identity section now explicitly states it's NOT a FIFO queue
+2. Added that it uses filesystem notifications (kqueue/inotify)
+3. Documented the event-driven nature vs polling
+
+Implementation details section added with:
+- Core mechanism explanation (filenotify-add-watch)
+- Platform-specific file watching systems
+- Complete flow sequence including processing directory
+- Specific Elisp function names for reference
+
+This addresses the vague 'Identity' section by providing concrete
+technical details discovered during experiment 002. The agent now
+has proper context about HOW the system works internally, not just
+the API surface.
+
+Critical insight: The 'queue' name is misleading - it's actually
+an event-driven message passing system using filesystem notifications
+for inter-process communication between AI and Emacs.
