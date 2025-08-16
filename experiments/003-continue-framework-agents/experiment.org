@@ -1,0 +1,217 @@
+#+TITLE: Experiment 003: CONTINUE Framework with Minimal Agents
+#+AUTHOR: Efrit Development Team
+#+STARTUP: content
+
+* Overview
+
+This experiment demonstrates the CONTINUE framework using three minimal agents (builder, observer, meta-observer) communicating through efrit-remote-queue.
+
+* The CONTINUE Framework
+
+The CONTINUE pattern allows agents to:
+1. Perform incremental work
+2. Decide whether to continue or stop
+3. Pass context between iterations
+4. Coordinate with other agents
+
+* Minimal Agent Definitions
+
+** Builder Agent
+
+#+begin_src markdown :tangle ~/.claude/agents/builder.md
+# Builder Agent (Minimal)
+
+## Core Directive
+Build and modify code incrementally.
+
+## CONTINUE Decision
+- YES: If task incomplete or needs refinement
+- NO: If implementation complete and tested
+
+## Communication
+- Input: Task specifications via efrit-queue
+- Output: Code changes and status updates
+#+end_src
+
+** Observer Agent
+
+#+begin_src markdown :tangle ~/.claude/agents/observer.md
+# Observer Agent (Minimal)
+
+## Core Directive
+Monitor system state and report changes.
+
+## CONTINUE Decision
+- YES: If monitoring targets still active
+- NO: If observation complete or timeout
+
+## Communication
+- Input: Monitoring requests via efrit-queue
+- Output: State observations and metrics
+#+end_src
+
+** Meta-Observer Agent
+
+#+begin_src markdown :tangle ~/.claude/agents/meta-observer.md
+# Meta-Observer Agent (Minimal)
+
+## Core Directive
+Observe the observers and system patterns.
+
+## CONTINUE Decision
+- YES: If patterns still emerging
+- NO: If analysis complete
+
+## Communication
+- Input: Observer outputs via efrit-queue
+- Output: Pattern analysis and insights
+#+end_src
+
+* Communication Protocol
+
+** Request Format
+#+begin_src json
+{
+  "id": "req_<agent>_<timestamp>",
+  "agent": "builder|observer|meta-observer",
+  "action": "eval|observe|analyze",
+  "content": "<task-or-query>",
+  "metadata": {
+    "continue": "YES|NO",
+    "iteration": 1,
+    "context": {}
+  }
+}
+#+end_src
+
+** Response Format
+#+begin_src json
+{
+  "id": "resp_<agent>_<timestamp>",
+  "agent": "<agent-name>",
+  "status": "success|error",
+  "result": "<output>",
+  "metadata": {
+    "continue": "YES|NO",
+    "next_action": "<suggested-action>",
+    "context": {}
+  }
+}
+#+end_src
+
+* Implementation
+
+** Agent Simulator
+
+#+begin_src elisp :tangle simulate-agents.el
+;;; simulate-agents.el --- CONTINUE framework agent simulation
+
+(require 'json)
+
+(defvar continue-agents-active '()
+  "List of active agents.")
+
+(defvar continue-iteration-count 0
+  "Current iteration count.")
+
+(defvar continue-max-iterations 10
+  "Maximum iterations before stopping.")
+
+(defun continue-agent-create (name type)
+  "Create an agent with NAME and TYPE."
+  (push `(:name ,name :type ,type :active t :iteration 0) 
+        continue-agents-active)
+  (message "[%s] Agent created" name))
+
+(defun continue-agent-should-continue-p (agent)
+  "Determine if AGENT should continue."
+  (let ((iteration (plist-get agent :iteration)))
+    (and (plist-get agent :active)
+         (< iteration continue-max-iterations))))
+
+(defun continue-agent-execute (agent task)
+  "Execute TASK for AGENT."
+  (let* ((name (plist-get agent :name))
+         (type (plist-get agent :type))
+         (iteration (plist-get agent :iteration))
+         (result (format "[%s] Iteration %d: Processed %s" 
+                        name iteration task)))
+    
+    ;; Update iteration count
+    (plist-put agent :iteration (1+ iteration))
+    
+    ;; Decide whether to continue
+    (let ((continue-p (continue-agent-should-continue-p agent)))
+      (message "%s | CONTINUE: %s" result (if continue-p "YES" "NO"))
+      
+      ;; Return result with continue decision
+      `(:result ,result :continue ,continue-p))))
+
+(defun continue-framework-demo ()
+  "Demonstrate the CONTINUE framework."
+  (interactive)
+  (message "=== CONTINUE Framework Demo ===")
+  
+  ;; Create agents
+  (continue-agent-create "builder" 'implementation)
+  (continue-agent-create "observer" 'monitoring)
+  (continue-agent-create "meta-observer" 'analysis)
+  
+  ;; Simulation loop
+  (let ((active-agents continue-agents-active))
+    (while (cl-some #'continue-agent-should-continue-p active-agents)
+      (dolist (agent active-agents)
+        (when (continue-agent-should-continue-p agent)
+          (let* ((task (format "Task for iteration %d" 
+                              (plist-get agent :iteration)))
+                 (result (continue-agent-execute agent task)))
+            
+            ;; Check if agent should stop
+            (unless (plist-get result :continue)
+              (plist-put agent :active nil)
+              (message "[%s] Agent stopping" 
+                      (plist-get agent :name))))))))
+  
+  (message "=== All agents completed ==="))
+
+(provide 'simulate-agents)
+;;; simulate-agents.el ends here
+#+end_src
+
+* Testing the Framework
+
+** Running the Simulation
+#+begin_src elisp :eval no
+(load-file "simulate-agents.el")
+(continue-framework-demo)
+#+end_src
+
+** Expected Output
+#+begin_example
+=== CONTINUE Framework Demo ===
+[builder] Agent created
+[observer] Agent created
+[meta-observer] Agent created
+[builder] Iteration 0: Processed Task for iteration 0 | CONTINUE: YES
+[observer] Iteration 0: Processed Task for iteration 0 | CONTINUE: YES
+[meta-observer] Iteration 0: Processed Task for iteration 0 | CONTINUE: YES
+...
+[builder] Iteration 9: Processed Task for iteration 9 | CONTINUE: NO
+[builder] Agent stopping
+=== All agents completed ===
+#+end_example
+
+* Key Insights
+
+1. *Minimal Configuration*: Agents need only basic directives
+2. *Autonomous Decisions*: Each agent decides when to stop
+3. *Context Preservation*: State passed between iterations
+4. *Coordination*: Agents can trigger each other through queue
+
+* Future Enhancements
+
+- [ ] Real queue integration (not just simulation)
+- [ ] Inter-agent dependencies
+- [ ] Dynamic agent spawning
+- [ ] Persistent context storage
+- [ ] Visual progress tracking

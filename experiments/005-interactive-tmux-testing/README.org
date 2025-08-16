@@ -1,0 +1,83 @@
+#+TITLE: Experiment 005: Interactive Tmux Testing
+#+STARTUP: content
+
+* Overview
+
+This experiment documents how to test Efrit interactively using tmux sessions, capture the testing process with asciinema, and convert recordings to GIF files for documentation.
+
+* Testing Process
+
+** Initial Setup
+
+#+begin_src bash
+# Create tmux session
+tmux new-session -s efrit-test
+
+# Split panes for parallel testing
+tmux split-window -h
+tmux split-window -v
+#+end_src
+
+** Recording with Asciinema
+
+#+begin_src bash
+# Start recording
+asciinema rec efrit-demo.cast
+
+# Run Emacs with Efrit
+emacs -Q -l ~/.emacs.d/init.el
+
+# Test commands
+M-x efrit-chat
+M-x efrit-do
+M-x efrit-remote-queue-start
+
+# Stop recording (Ctrl-D)
+#+end_src
+
+** Converting to GIF
+
+#+begin_src bash
+# Install agg if needed
+pip install asciinema-gif-generator
+
+# Convert to GIF
+agg efrit-demo.cast efrit-demo.gif
+#+end_src
+
+* Tmux Commands Reference
+
+| Command | Description |
+|---------|-------------|
+| =C-b %= | Split vertically |
+| =C-b "= | Split horizontally |
+| =C-b arrow= | Navigate panes |
+| =C-b z= | Toggle zoom |
+| =C-b d= | Detach session |
+| =tmux attach -t name= | Reattach session |
+
+* Testing Scenarios
+
+** Scenario 1: Queue Communication
+1. Start Efrit queue in pane 1
+2. Send requests from pane 2
+3. Monitor responses in pane 3
+
+** Scenario 2: Multi-Agent Testing
+1. Run builder agent in pane 1
+2. Run observer agent in pane 2
+3. Watch coordination in main pane
+
+* Recording Best Practices
+
+- Use consistent terminal size (80x24)
+- Clear terminal before recording
+- Use descriptive commands
+- Keep recordings under 5 minutes
+- Add pauses for readability
+
+* Files Generated
+
+- =efrit-demo.cast= - Asciinema recording
+- =efrit-demo.gif= - Animated GIF
+- =test-session.log= - Session transcript

@@ -1,0 +1,234 @@
+#+TITLE: Experiment 004: Ollama Tool Calling with Elisp Primitives
+#+AUTHOR: Efrit Development Team
+#+STARTUP: content
+
+* Overview
+
+This experiment implements Ollama's tool calling support using pure Elisp primitives like =dired=, =find-file=, =load-file=, and =grep-find=. These functions become callable tools that the LLM can invoke to interact with Emacs.
+
+* Background
+
+Ollama now supports tool calling (function calling) allowing models to use predefined tools to perform complex tasks. This experiment maps Emacs Lisp functions to the tool calling protocol.
+
+* Tool Definition Format
+
+According to the Ollama blog, tools are defined as:
+
+#+begin_src json
+{
+  "type": "function",
+  "function": {
+    "name": "function_name",
+    "description": "What the function does",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "param1": {
+          "type": "string",
+          "description": "Parameter description"
+        }
+      },
+      "required": ["param1"]
+    }
+  }
+}
+#+end_src
+
+* Elisp Tool Definitions
+
+** File Operations
+
+#+begin_src elisp :tangle ollama-elisp-tools.el
+;;; ollama-elisp-tools.el --- Ollama tool calling with Elisp primitives
+
+(require 'json)
+
+(defvar ollama-elisp-tools-available
+  '((find-file
+     :description "Open a file in Emacs"
+     :parameters ((:name "filename" :type "string" :required t)))
+    
+    (dired
+     :description "Open directory browser"
+     :parameters ((:name "directory" :type "string" :required t)))
+    
+    (grep-find
+     :description "Search for pattern in files"
+     :parameters ((:name "pattern" :type "string" :required t)
+                  (:name "directory" :type "string" :required nil)))
+    
+    (load-file
+     :description "Load and execute an Elisp file"
+     :parameters ((:name "filename" :type "string" :required t)))
+    
+    (buffer-list
+     :description "List all open buffers"
+     :parameters ())
+    
+    (save-buffer
+     :description "Save current buffer to file"
+     :parameters ())
+    
+    (eval-expression
+     :description "Evaluate arbitrary Elisp expression"
+     :parameters ((:name "expression" :type "string" :required t))))
+  "Available tools for Ollama with their specifications.")
+
+(defun ollama-tools-to-json ()
+  "Convert tool definitions to Ollama JSON format."
+  (json-encode
+   (mapcar
+    (lambda (tool-spec)
+      (let* ((name (car tool-spec))
+             (props (cdr tool-spec))
+             (desc (plist-get props :description))
+             (params (plist-get props :parameters)))
+        `((type . "function")
+          (function . ((name . ,(symbol-name name))
+                      (description . ,desc)
+                      (parameters . ((type . "object")
+                                   (properties . ,(ollama-params-to-properties params))
+                                   (required . ,(ollama-get-required params)))))))))
+    ollama-elisp-tools-available)))
+
+(defun ollama-params-to-properties (params)
+  "Convert PARAMS to JSON properties format."
+  (mapcar
+   (lambda (param)
+     (cons (plist-get param :name)
+           `((type . ,(plist-get param :type))
+             (description . ,(format "Parameter: %s" (plist-get param :name))))))
+   params))
+
+(defun ollama-get-required (params)
+  "Get list of required parameter names from PARAMS."
+  (delq nil
+        (mapcar
+         (lambda (param)
+           (when (plist-get param :required)
+             (plist-get param :name)))
+         params)))
+
+(provide 'ollama-elisp-tools)
+;;; ollama-elisp-tools.el ends here
+#+end_src
+
+** Tool Execution
+
+#+begin_src bash :tangle test-tool-calling.sh :shebang #!/usr/bin/env bash
+# Test Ollama tool calling with Elisp functions
+
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+MODEL="${MODEL:-qwen2.5-coder:7b}"
+
+echo "Testing Ollama Tool Calling with Elisp"
+echo "======================================="
+
+# Define tools in JSON
+TOOLS='[
+  {
+    "type": "function",
+    "function": {
+      "name": "find_file",
+      "description": "Open a file in Emacs",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "Path to the file"
+          }
+        },
+        "required": ["filename"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "dired",
+      "description": "Open directory browser",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "description": "Path to directory"
+          }
+        },
+        "required": ["directory"]
+      }
+    }
+  }
+]'
+
+# Test request with tools
+REQUEST='{
+  "model": "'$MODEL'",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Open the init.el file in my .emacs.d directory"
+    }
+  ],
+  "tools": '$TOOLS',
+  "stream": false
+}'
+
+echo "Request:"
+echo "$REQUEST" | jq .
+
+echo ""
+echo "Response:"
+curl -s -X POST "$OLLAMA_HOST/api/chat" \
+     -H "Content-Type: application/json" \
+     -d "$REQUEST" | jq .
+#+end_src
+
+* Testing
+
+** Manual Test
+#+begin_src elisp :eval no
+(load-file "ollama-elisp-tools.el")
+
+;; Generate tool definitions
+(ollama-tools-to-json)
+
+;; Execute a tool call
+(find-file "~/.emacs.d/init.el")
+#+end_src
+
+** Expected Tool Call Response
+#+begin_src json
+{
+  "message": {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+      {
+        "function": {
+          "name": "find_file",
+          "arguments": {
+            "filename": "~/.emacs.d/init.el"
+          }
+        }
+      }
+    ]
+  }
+}
+#+end_src
+
+* Key Features
+
+- *Pure Elisp*: Uses native Emacs functions as tools
+- *JSON Protocol*: Follows Ollama's tool calling format
+- *Extensible*: Easy to add new Elisp functions as tools
+- *Type Safe*: Parameter types and requirements specified
+
+* Future Work
+
+- [ ] Implement tool result handling
+- [ ] Add more complex Elisp functions
+- [ ] Create tool chains for multi-step operations
+- [ ] Add authentication/permission system
+- [ ] Integrate with efrit-remote-queue
