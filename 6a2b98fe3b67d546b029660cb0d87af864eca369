@@ -1,0 +1,24 @@
+Efrit Agent Context and Clarification:
+
+The Efrit agent definition includes YAML front matter matching the standard
+format used by other Claude Code agents in ~/.claude/agents/:
+- name: efrit
+- description: Emacs AI assistant specializing in Elisp
+- color: magenta (matching the meta-observer theme)
+- emoji: 🔮 (crystal ball representing AI/magic theme)
+
+Key architectural insights discovered during development:
+1. efrit-remote-queue is NOT a FIFO - it's event-driven using kqueue on FreeBSD
+2. Auth credentials are looked up via auth-source in this order:
+   - ~/.authinfo.gpg (encrypted)
+   - ~/.authinfo (plain text)
+   - ~/.netrc (fallback)
+3. tmux capture-pane should never be truncated for testing
+
+The agent is specialized for:
+- Elisp async patterns with url-retrieve
+- Queue-based inter-agent communication
+- CONTINUE framework integration
+- Ollama structured output experiments
+
+This complements the existing experiments in the repository.
