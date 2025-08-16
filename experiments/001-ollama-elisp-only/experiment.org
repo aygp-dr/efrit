@@ -1,0 +1,499 @@
+#+TITLE: Experiment 001: Ollama Elisp-Only Responses
+#+AUTHOR: Efrit Development Team
+#+STARTUP: content
+#+PROPERTY: header-args :tangle yes :comments both :mkdirp yes
+
+* Overview
+
+This experiment demonstrates how to configure Ollama to return ONLY valid Elisp code that can be directly executed by Emacs, without any wrapper text, markdown, or explanations.
+
+* Key Innovation
+
+Uses Ollama's structured output with JSON schema to enforce that responses contain only executable Elisp code. The system prompt is carefully crafted to prevent the model from adding explanations or formatting.
+
+* Implementation
+
+** Main Elisp Module
+
+#+begin_src elisp :tangle ollama-elisp-only.el
+;;; ollama-elisp-only.el --- Ollama integration for pure Elisp responses
+
+;; Copyright (C) 2025 Efrit Development Team
+;; Author: Efrit Development Team
+;; Keywords: ai, llm, ollama, elisp
+
+;;; Commentary:
+;; This module provides integration with Ollama to generate ONLY valid Elisp code
+;; that can be directly executed without parsing or cleanup.
+
+;;; Code:
+
+(require 'json)
+(require 'url)
+
+(defgroup ollama-elisp nil
+  "Ollama integration for pure Elisp responses."
+  :group 'tools
+  :prefix "ollama-elisp-")
+
+(defcustom ollama-elisp-host "http://localhost:11434"
+  "Ollama API host."
+  :type 'string
+  :group 'ollama-elisp)
+
+(defcustom ollama-elisp-model "qwen2.5-coder:7b"
+  "Ollama model to use for Elisp generation."
+  :type 'string
+  :group 'ollama-elisp)
+
+(defcustom ollama-elisp-temperature 0.1
+  "Temperature for Ollama requests (0.0-1.0)."
+  :type 'float
+  :group 'ollama-elisp)
+
+(defvar ollama-elisp-schema
+  '((type . "object")
+    (properties . ((elisp . ((type . "string")
+                             (description . "Valid Elisp code only")))))
+    (required . ["elisp"]))
+  "JSON schema for structured Elisp output.")
+
+(defun ollama-elisp--make-request (prompt)
+  "Make HTTP request to Ollama with PROMPT."
+  (let* ((url-request-method "POST")
+         (url-request-extra-headers '(("Content-Type" . "application/json")))
+         (url-request-data
+          (json-encode
+           `((model . ,ollama-elisp-model)
+             (prompt . ,prompt)
+             (system . "You are an Elisp code generator. Return ONLY valid Elisp code that can be executed with eval. No explanations, no markdown, just pure Elisp.")
+             (stream . :false)
+             (format . ((type . "json")
+                        (schema . ,ollama-elisp-schema)))
+             (temperature . ,ollama-elisp-temperature))))
+         (response-buffer (url-retrieve-synchronously
+                           (concat ollama-elisp-host "/api/generate"))))
+    (when response-buffer
+      (with-current-buffer response-buffer
+        (goto-char (point-min))
+        (re-search-forward "^$" nil t)
+        (let* ((json-object-type 'plist)
+               (response (json-read))
+               (response-text (plist-get response :response)))
+          (kill-buffer response-buffer)
+          (when response-text
+            (let* ((parsed-response (json-read-from-string response-text))
+                   (elisp-code (plist-get parsed-response :elisp)))
+              elisp-code)))))))
+
+(defun ollama-elisp--make-raw-request (prompt)
+  "Make HTTP request to Ollama with PROMPT for raw Elisp (no JSON wrapper)."
+  (let* ((url-request-method "POST")
+         (url-request-extra-headers '(("Content-Type" . "application/json")))
+         (url-request-data
+          (json-encode
+           `((model . ,ollama-elisp-model)
+             (prompt . ,(format "Return ONLY Elisp code, no explanations: %s" prompt))
+             (system . "You must return ONLY valid Elisp code. No markdown backticks, no explanations, no comments outside Elisp. Just pure executable Elisp.")
+             (stream . :false)
+             (temperature . ,ollama-elisp-temperature))))
+         (response-buffer (url-retrieve-synchronously
+                           (concat ollama-elisp-host "/api/generate"))))
+    (when response-buffer
+      (with-current-buffer response-buffer
+        (goto-char (point-min))
+        (re-search-forward "^$" nil t)
+        (let* ((json-object-type 'plist)
+               (response (json-read))
+               (elisp-code (plist-get response :response)))
+          (kill-buffer response-buffer)
+          ;; Clean up any markdown wrapping
+          (when elisp-code
+            (setq elisp-code (replace-regexp-in-string "^```elisp\n?" "" elisp-code))
+            (setq elisp-code (replace-regexp-in-string "\n?```$" "" elisp-code))
+            (string-trim elisp-code))))))))
+
+(defcustom ollama-elisp-use-structured-output t
+  "Whether to use structured JSON output or raw Elisp."
+  :type 'boolean
+  :group 'ollama-elisp)
+
+(defun ollama-elisp-query (prompt)
+  "Query Ollama for Elisp code based on PROMPT and evaluate it."
+  (interactive "sPrompt: ")
+  (let ((elisp-code (if ollama-elisp-use-structured-output
+                        (ollama-elisp--make-request prompt)
+                      (ollama-elisp--make-raw-request prompt))))
+    (if elisp-code
+        (condition-case err
+            (eval (read elisp-code))
+          (error
+           (message "Error evaluating Elisp: %s" err)
+           nil))
+      (message "No response from Ollama")
+      nil)))
+
+(defun ollama-elisp-query-insert (prompt)
+  "Query Ollama for Elisp code and insert at point."
+  (interactive "sPrompt: ")
+  (let ((elisp-code (ollama-elisp--make-request prompt)))
+    (when elisp-code
+      (insert elisp-code))))
+
+(defun ollama-elisp-query-region (start end prompt)
+  "Replace region from START to END with Ollama-generated Elisp."
+  (interactive "r\nsPrompt: ")
+  (let ((elisp-code (ollama-elisp--make-request prompt)))
+    (when elisp-code
+      (delete-region start end)
+      (insert elisp-code))))
+
+(defun ollama-elisp-context-query (prompt)
+  "Query Ollama with buffer context and PROMPT."
+  (interactive "sPrompt: ")
+  (let* ((context (buffer-substring-no-properties (point-min) (point-max)))
+         (full-prompt (format "Context:\n%s\n\nTask: %s" context prompt)))
+    (ollama-elisp-query full-prompt)))
+
+(defun ollama-elisp-test-connection ()
+  "Test connection to Ollama."
+  (interactive)
+  (let ((result (ollama-elisp-query "what is 2 + 2")))
+    (if result
+        (message "✅ Ollama connection successful: %s" result)
+      (message "❌ Ollama connection failed"))))
+
+(provide 'ollama-elisp-only)
+;;; ollama-elisp-only.el ends here
+#+end_src
+
+** Test Suite
+
+#+begin_src elisp :tangle test-ollama-elisp.el
+;;; test-ollama-elisp.el --- Test suite for ollama-elisp-only
+
+;; Copyright (C) 2025 Efrit Development Team
+
+;;; Commentary:
+;; Test suite and examples for the Ollama Elisp integration.
+
+;;; Code:
+
+(require 'ert)
+(require 'ollama-elisp-only)
+
+(ert-deftest test-ollama-elisp-simple-arithmetic ()
+  "Test simple arithmetic evaluation."
+  (let ((result (ollama-elisp-query "add 40 and 2")))
+    (should (numberp result))
+    (should (= result 42))))
+
+(ert-deftest test-ollama-elisp-string-operation ()
+  "Test string operations."
+  (let ((result (ollama-elisp-query "reverse the string 'hello'")))
+    (should (stringp result))
+    (should (string= result "olleh"))))
+
+(ert-deftest test-ollama-elisp-list-operation ()
+  "Test list operations."
+  (let ((result (ollama-elisp-query "create a list of numbers 1 to 5")))
+    (should (listp result))
+    (should (equal result '(1 2 3 4 5)))))
+
+(defun ollama-elisp-demo ()
+  "Interactive demo of Ollama Elisp functionality."
+  (interactive)
+  (message "🚀 Starting Ollama Elisp Demo")
+  
+  ;; Test 1: Simple arithmetic
+  (message "\n➕ Test 1: Simple arithmetic")
+  (let ((result (ollama-elisp-query "multiply 6 by 7")))
+    (message "Result: %s" result))
+  
+  ;; Test 2: Current time
+  (message "\n🕐 Test 2: Current time")
+  (let ((result (ollama-elisp-query "get current time as string")))
+    (message "Time: %s" result))
+  
+  ;; Test 3: Buffer operations
+  (message "\n📄 Test 3: Buffer name")
+  (let ((result (ollama-elisp-query "get current buffer name")))
+    (message "Buffer: %s" result))
+  
+  (message "\n✅ Demo complete!"))
+
+(defun ollama-elisp-benchmark ()
+  "Benchmark Ollama response times."
+  (interactive)
+  (message "🏃 Benchmarking Ollama Elisp...")
+  (let ((start-time (current-time))
+        (iterations 5)
+        (total-time 0))
+    
+    (dotimes (i iterations)
+      (let ((iter-start (current-time)))
+        (ollama-elisp-query "what is 1 + 1")
+        (setq total-time (+ total-time 
+                           (float-time (time-subtract (current-time) iter-start))))))
+    
+    (let ((avg-time (/ total-time iterations)))
+      (message "Average response time: %.3f seconds" avg-time))))
+
+(provide 'test-ollama-elisp)
+;;; test-ollama-elisp.el ends here
+#+end_src
+
+** Shell Test Script
+
+#+begin_src bash :tangle test-with-curl.sh :shebang #!/usr/bin/env sh
+# Test Ollama Elisp-only responses using curl commands
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+
+echo "${BLUE}=== Ollama Elisp-Only Experiment ===${NC}"
+echo "Host: $OLLAMA_HOST"
+echo ""
+
+# Step 1: List available models and select best coding model
+echo "${YELLOW}Step 1: Discovering available models...${NC}"
+echo "Command: curl -s $OLLAMA_HOST/api/tags"
+echo ""
+
+MODELS_JSON=$(curl -s "$OLLAMA_HOST/api/tags")
+if [ $? -ne 0 ]; then
+    echo "${RED}Error: Cannot connect to Ollama at $OLLAMA_HOST${NC}"
+    echo "Make sure Ollama is running: ollama serve"
+    exit 1
+fi
+
+echo "$MODELS_JSON" | jq -r '.models[] | .name' 2>/dev/null || echo "$MODELS_JSON"
+echo ""
+
+# Auto-select best coding model
+MODEL=$(echo "$MODELS_JSON" | jq -r '.models[] | .name' | grep -E '(qwen2.5-coder|coder|codellama|deepseek|starcoder)' | head -1)
+if [ -z "$MODEL" ]; then
+    MODEL=$(echo "$MODELS_JSON" | jq -r '.models[0] | .name')
+fi
+
+echo "${GREEN}Selected model: $MODEL${NC}"
+echo ""
+
+# Step 2: System prompt
+echo "${YELLOW}Step 2: System Prompt for Elisp-Only Responses${NC}"
+cat << 'EOF'
+You are an Elisp code generator integrated into Emacs.
+CRITICAL RULES:
+1. Your ENTIRE response must be valid Elisp code that can be executed with `eval`
+2. NO explanations, NO comments outside of Elisp comments, NO markdown
+3. Use Elisp functions to accomplish tasks
+4. Return ONLY executable Elisp code
+5. Your response will be directly passed to `eval` - any non-Elisp will cause an error
+EOF
+echo ""
+
+# Step 3: Test structured output
+echo "${YELLOW}Step 3: Testing Structured Output with JSON Schema${NC}"
+echo ""
+
+# Create JSON schema
+SCHEMA='{
+  "type": "object",
+  "properties": {
+    "elisp": {
+      "type": "string",
+      "description": "Valid Elisp code only, no markdown or explanations"
+    }
+  },
+  "required": ["elisp"]
+}'
+
+# Function to make structured request
+make_structured_request() {
+    local prompt="$1"
+    local request_json=$(cat << EOF
+{
+  "model": "$MODEL",
+  "prompt": "$prompt",
+  "system": "You are an Elisp code generator. Return ONLY valid Elisp code that can be executed with eval. No explanations, no markdown, just pure Elisp.",
+  "stream": false,
+  "format": {
+    "type": "json",
+    "schema": $SCHEMA
+  },
+  "temperature": 0.1
+}
+EOF
+)
+    
+    echo "Request: $prompt"
+    echo ""
+    echo "Response:"
+    curl -s -X POST "$OLLAMA_HOST/api/generate" \
+        -H "Content-Type: application/json" \
+        -d "$request_json" | jq -r '.response' | jq .
+}
+
+# Test cases
+echo "${BLUE}--- Test 1: List files in current directory ---${NC}"
+make_structured_request "list all files in the current directory"
+echo ""
+
+echo "${BLUE}--- Test 2: Mathematical operation ---${NC}"
+make_structured_request "calculate the factorial of 5"
+echo ""
+
+echo "${BLUE}--- Test 3: String manipulation ---${NC}"
+make_structured_request "reverse the string hello world"
+echo ""
+
+echo "${BLUE}--- Test 4: System information ---${NC}"
+make_structured_request "show emacs version and current time"
+echo ""
+
+echo "${GREEN}=== Experiment Complete ===${NC}"
+echo ""
+echo "To use in Emacs:"
+echo "1. Load ollama-elisp-only.el"
+echo "2. Set ollama-elisp-model to '$MODEL'"
+echo "3. Run (ollama-elisp-query \"your prompt\")"
+echo ""
+echo "The structured output with JSON schema is the most reliable method!"
+#+end_src
+
+* Configuration
+
+** Variables
+
+#+begin_src elisp :eval no
+;; Change the Ollama host (default: localhost:11434)
+(setq ollama-elisp-host "http://localhost:11434")
+
+;; Change the model (auto-detected by curl script)
+(setq ollama-elisp-model "qwen2.5-coder:7b")
+
+;; Adjust temperature (0.1 = deterministic, 1.0 = creative)
+(setq ollama-elisp-temperature 0.1)
+#+end_src
+
+* Testing
+
+** Running Tests
+
+#+begin_src elisp :eval no
+(load-file "test-ollama-elisp.el")
+
+;; Run automated tests
+(ert-run-tests-interactively "test-ollama-elisp-")
+
+;; Run interactive demo
+(ollama-elisp-demo)
+
+;; Benchmark response times
+(ollama-elisp-benchmark)
+#+end_src
+
+** Example Use Cases
+
+*** File Operations
+#+begin_src elisp :eval no
+(ollama-elisp-query "check if init.el exists in .emacs.d")
+;; => t or nil
+#+end_src
+
+*** Data Manipulation
+#+begin_src elisp :eval no
+(ollama-elisp-query "create an alist of colors to hex codes")
+;; => '((red . "#FF0000") (green . "#00FF00") (blue . "#0000FF"))
+#+end_src
+
+*** Buffer Operations
+#+begin_src elisp :eval no
+(ollama-elisp-query "count words in current buffer")
+;; => 1234
+#+end_src
+
+*** System Information
+#+begin_src elisp :eval no
+(ollama-elisp-query "get load average")
+;; => (0.15 0.20 0.18)
+#+end_src
+
+* How It Works
+
+** System Prompt
+The system prompt enforces strict rules:
+1. ENTIRE response must be valid Elisp
+2. NO explanations or markdown
+3. Response goes directly to =eval=
+4. Use native Elisp functions for all operations
+
+** Structured Output
+Uses JSON schema to wrap responses:
+
+#+begin_src json
+{
+  "type": "object",
+  "properties": {
+    "elisp": {
+      "type": "string",
+      "description": "Valid Elisp code only"
+    }
+  },
+  "required": ["elisp"]
+}
+#+end_src
+
+** Example Request/Response
+
+*Request:* "list all .el files"
+
+*Response JSON:*
+#+begin_src json
+{
+  "elisp": "(directory-files default-directory t \"\\\\.el$\")"
+}
+#+end_src
+
+*Evaluated Result:* List of .el files in current directory
+
+* Advantages
+
+- *Direct Execution*: No parsing needed, responses are ready to eval
+- *No Wrapper Text*: Structured output prevents explanations
+- *Type Safety*: JSON schema ensures consistent format
+- *Model Agnostic*: Works with any Ollama model (coding models preferred)
+- *Error Handling*: Graceful fallbacks if evaluation fails
+
+* Limitations
+
+- Requires Ollama with structured output support
+- Best results with coding-focused models
+- Complex multi-step operations may need prompt engineering
+- Temperature should be kept low for deterministic results
+
+* Future Improvements
+
+- [ ] Add caching for repeated queries
+- [ ] Support for async requests
+- [ ] Integration with company-mode for completions
+- [ ] Multi-turn conversations with context
+- [ ] Fine-tuning prompts for specific Elisp idioms
+
+* Build Instructions
+
+To extract all files from this document:
+
+#+begin_example
+# In Emacs
+C-c C-v t  (org-babel-tangle)
+
+# Or from command line
+emacs --batch experiment.org -f org-babel-tangle
+#+end_example
