@@ -67,6 +67,49 @@ Efrit provides multiple interfaces for AI-powered Emacs development:
 
 4. **Restart Emacs** and test with `M-x efrit-chat`
 
+### Data Directory
+
+Efrit organizes all user data under a single configurable directory (default: `~/.emacs.d/.efrit/`):
+
+```
+~/.emacs.d/.efrit/
+├── cache/              # Temporary cache files
+├── context/            # Context persistence (efrit-do)
+│   └── efrit-do-context.el
+├── queues/             # AI-to-efrit communication
+│   ├── requests/       # Incoming AI requests
+│   ├── processing/     # Currently processing  
+│   ├── responses/      # Completed responses
+│   └── archive/        # Archived communications
+├── queue-ai/           # Autonomous AI communication
+├── logs/               # Debug and activity logs
+├── sessions/           # Session persistence data
+└── workspace/          # Autonomous workspace
+    ├── auto-saves/     # Emacs auto-save files
+    ├── backups/        # Backup files  
+    └── startup.log     # Startup logging
+```
+
+**Key Benefits**:
+- 🗂️ **Organized**: All efrit data in one predictable location
+- ⚙️ **Configurable**: Easily change location via `efrit-data-directory`
+- 🚫 **Version Control Safe**: Excluded from git via `.efrit/` in `.gitignore`
+- 📊 **Dashboard Ready**: Structured for easy monitoring and management
+
+**Customization**:
+```elisp
+;; Custom location (set before loading efrit)
+(setq efrit-data-directory "~/my-custom-efrit-data")
+(require 'efrit)
+```
+
+**Migration**: Existing scattered efrit files (`~/.emacs.d/efrit-*`) are automatically migrated to the organized structure on first load.
+
+**Maintenance**: 
+- Safe to delete individual subdirectories to reset specific components
+- Queue directories auto-recreate as needed
+- Context files can be manually backed up/restored
+
 ### 🆕 Enable Agent Communication
 
 Start the remote queue to allow AI agents to interact with Efrit:
@@ -76,7 +119,7 @@ Start the remote queue to allow AI agents to interact with Efrit:
 (efrit-remote-queue-start)  ; or C-c C-e q
 ```
 
-This creates `~/.emacs.d/efrit-queue/` for AI agent communication.
+This creates `~/.emacs.d/.efrit/queues/` for AI agent communication.
 
 ## Usage
 
